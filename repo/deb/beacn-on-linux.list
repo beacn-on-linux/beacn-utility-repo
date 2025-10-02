@@ -1,0 +1,1 @@
+deb [signed-by=/usr/share/keyrings/beacn-on-linux.gpg trusted=yes] https://beacn-on-linux.github.io/beacn-utility-repo/deb stable main

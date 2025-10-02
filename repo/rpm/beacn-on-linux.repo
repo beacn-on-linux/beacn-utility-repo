@@ -1,0 +1,6 @@
+[beacn-on-linux]
+name=Beacn on Linux
+baseurl=https://beacn-on-linux.github.io/beacn-utility-repo/rpm
+enabed=1
+gpgcheck=1
+gpgkey=https://beacn-on-linux.github.io/beacn-utility-repo/public.gpg
