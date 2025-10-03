@@ -14,11 +14,28 @@ Arch based distributions can use either the flatpak, or install via the AUR.
 
 
 # Installation
+The following script will attempt to auto-detect your environment and install the correct repository for you.
+
+```bash
+curl -fsSL https://beacn-on-linux.github.io/beacn-utility-repo/scripts/install.sh | bash
+```
+
+To manually install for a specific distribution, run the following:
+
+## Debian based distributions
+
+```bash
 curl -fsSL https://beacn-on-linux.github.io/beacn-utility-repo/scripts/install-deb.sh | bash
+```
 
+## RPM based distributions
 
+```bash
 curl -fsSL https://beacn-on-linux.github.io/beacn-utility-repo/scripts/install-rpm.sh | bash
+```
 
+## Flatpak
 
+```bash
 curl -fsSL https://beacn-on-linux.github.io/beacn-utility-repo/scripts/install-flatpak.sh | bash
-
+```
