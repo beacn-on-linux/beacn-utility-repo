@@ -107,6 +107,8 @@ run_installer() {
     url="$1"
     name="$2"
 
+    TEMP_FILE="$(mktemp "/tmp/${name}.XXXXXX.sh")"
+
     echo "Downloading installer for $name..."
     if ! curl -fsSL -o "$TEMP_FILE" "$url"; then
         echo "Failed to download installer script."
