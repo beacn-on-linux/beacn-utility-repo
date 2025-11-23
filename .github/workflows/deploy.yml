@@ -28,7 +28,7 @@ jobs:
 
   build_package_repos:
     runs-on: ubuntu-latest
-    needs: [ get_version, build_flatpak ]
+    needs: [ get_version ]
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
@@ -43,6 +43,7 @@ jobs:
           echo "Latest release: ${{ needs.get_version.outputs.release }}"
           gh release download "${{ needs.get_version.outputs.release }}" --repo beacn-on-linux/beacn-utility --pattern "*.deb" --dir artifacts/deb
           gh release download "${{ needs.get_version.outputs.release }}" --repo beacn-on-linux/beacn-utility --pattern "*.rpm" --dir artifacts/rpm
+          gh release download "${{ needs.get_version.outputs.release }}" --repo beacn-on-linux/beacn-utility-flatpak --pattern "*.flatpak" --dir artifacts/flatpak
 
       - name: Install dependencies
         run: |
@@ -112,12 +113,6 @@ jobs:
 
           # Generate metadata
           createrepo_c repo/rpm
-
-      - name: Download Flatpak artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: flatpak-bundle
-          path: artifacts/flatpak
 
       - name: Build Flatpak repo
         run: |
