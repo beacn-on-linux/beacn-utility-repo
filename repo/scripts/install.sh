@@ -28,6 +28,10 @@ fi
 
 set -euo pipefail
 
+version_gte() {
+    [ "$(printf '%s\n%s' "$2" "$1" | sort -V | tail -n1)" = "$1" ]
+}
+
 # These are just helpers, so that forks can easily change settings
 USER="beacn-on-linux"
 REPOSITORY="beacn-utility-repo"
@@ -72,7 +76,13 @@ fi
 
 # Check for Flatpak support
 if command -v flatpak >/dev/null 2>&1; then
-    available+=("flatpak")
+    flatpak_version="$(flatpak --version | awk '{print $2}')"
+    required_flatpak="1.15.11"
+
+    if version_gte "$flatpak_version" "$required_flatpak"; then
+        available+=("flatpak")
+        flatpak_supported_usb=true
+    fi
 fi
 
 # If we're immutable, RPM isn't valid, remove it from the list
