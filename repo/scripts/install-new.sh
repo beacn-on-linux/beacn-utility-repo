@@ -22,7 +22,6 @@ _has_gui_tools() {
 # 3: We don't have GUI dialog tools
 # 4: Stdin is not a TTY (we're not already inside a terminal)
 if [ "${_TERMINAL_REEXEC:-}" != "1" ] && _has_display && ! _has_gui_tools && [ ! -t 0 ]; then
-    # This is simply a list of possible terminals we could try and spawn to run the installer in.
     terminal_candidates=(
         "gnome-terminal:--"
         "konsole:-e"
@@ -53,7 +52,6 @@ if [ "${_TERMINAL_REEXEC:-}" != "1" ] && _has_display && ! _has_gui_tools && [ !
     if [ -n "$TERMINAL_BIN" ]; then
         export _TERMINAL_REEXEC=1
         SELF="$(realpath "$0")"
-
         # Wrap in a shell so the window pauses on failure rather than
         # closing before the user can read any error output.
         if [ -n "$TERMINAL_FLAG" ]; then
@@ -333,9 +331,6 @@ _detect_escalate() {
                /org/freedesktop/PolicyKit1/Authority \
                org.freedesktop.DBus.Peer.Ping &>/dev/null 2>&1; then
             ESCALATE="pkexec"
-            # Warm up a polkit session by running a no-op so subsequent
-            # calls reuse the same authentication within the session window.
-            pkexec true 2>/dev/null || true
             return
         fi
     fi
@@ -361,15 +356,12 @@ _detect_escalate() {
     exit 1
 }
 
-run_privileged() {
-    if [ -z "$ESCALATE" ]; then
-        _detect_escalate
-    fi
-
+run_privileged_batch() {
+    local script="$1"
     case "$ESCALATE" in
-        pkexec) pkexec "$@" ;;
-        sudo)   sudo "$@" ;;
-        su_c)   su -c "$(printf '%q ' "$@")" root ;;
+        pkexec) pkexec bash "$script" ;;
+        sudo)   sudo bash "$script" ;;
+        su_c)   su -c "bash '$script'" root ;;
     esac
 }
 
@@ -447,20 +439,26 @@ install_deb() {
 
     progress_start "Installing BEACN Utility" 4
 
-    progress_step "Downloading and importing signing key..."
-    curl -fsSL "$GPG_KEY_URL" \
-        | gpg --dearmor \
-        | run_privileged tee /usr/share/keyrings/beacn-on-linux.gpg >/dev/null
+    progress_step "Downloading signing key..."
+    local tmp_key tmp_script
+    tmp_key="$(mktemp /tmp/beacn-key-XXXXXX.gpg)"
+    tmp_script="$(mktemp /tmp/beacn-priv-XXXXXX.sh)"
+    curl -fsSL "$GPG_KEY_URL" | gpg --dearmor > "$tmp_key"
 
-    progress_step "Configuring apt repository..."
-    run_privileged curl -fsSL "$APT_REPO_LIST_URL" \
-        -o /etc/apt/sources.list.d/beacn-on-linux.list
+    progress_step "Preparing install..."
+    cat > "$tmp_script" <<EOF
+#!/bin/bash
+set -e
+tee /usr/share/keyrings/beacn-on-linux.gpg < "$tmp_key" >/dev/null
+curl -fsSL "$APT_REPO_LIST_URL" -o /etc/apt/sources.list.d/beacn-on-linux.list
+apt-get update -q
+apt-get install -y beacn-utility
+EOF
+    chmod +x "$tmp_script"
 
-    progress_step "Updating package lists..."
-    run_privileged apt-get update -q
-
-    progress_step "Installing beacn-utility..."
-    run_privileged apt-get install -y beacn-utility
+    progress_step "Installing (you will be prompted for your password)..."
+    run_privileged_batch "$tmp_script"
+    rm -f "$tmp_key" "$tmp_script"
 
     progress_finish
     ui_info "Installation complete" "BEACN Utility has been installed successfully."
@@ -476,20 +474,24 @@ install_rpm() {
     progress_start "Installing BEACN Utility" 4
 
     progress_step "Downloading signing key..."
-    TMP_KEY="$(mktemp)"
-    curl -fsSL "$GPG_KEY_URL" -o "$TMP_KEY"
+    local tmp_key tmp_script
+    tmp_key="$(mktemp /tmp/beacn-key-XXXXXX.gpg)"
+    tmp_script="$(mktemp /tmp/beacn-priv-XXXXXX.sh)"
+    curl -fsSL "$GPG_KEY_URL" -o "$tmp_key"
 
-    progress_step "Importing signing key..."
-    run_privileged rpm --import "$TMP_KEY"
-    rm -f "$TMP_KEY"
+    progress_step "Preparing install..."
+    cat > "$tmp_script" <<EOF
+#!/bin/bash
+set -e
+rpm --import "$tmp_key"
+curl -fsSL "$RPM_REPO_URL" -o /etc/yum.repos.d/beacn-on-linux.repo
+dnf -y install beacn-utility 2>/dev/null || yum -y install beacn-utility
+EOF
+    chmod +x "$tmp_script"
 
-    progress_step "Configuring RPM repository..."
-    run_privileged curl -fsSL "$RPM_REPO_URL" \
-        -o /etc/yum.repos.d/beacn-on-linux.repo
-
-    progress_step "Installing beacn-utility..."
-    run_privileged dnf -y install beacn-utility 2>/dev/null \
-        || run_privileged yum -y install beacn-utility
+    progress_step "Installing (you will be prompted for your password)..."
+    run_privileged_batch "$tmp_script"
+    rm -f "$tmp_key" "$tmp_script"
 
     progress_finish
     ui_info "Installation complete" "BEACN Utility has been installed successfully."
