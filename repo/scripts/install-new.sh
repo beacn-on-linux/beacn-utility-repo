@@ -494,7 +494,7 @@ dnf -y install beacn-utility 2>/dev/null || yum -y install beacn-utility
 EOF
     chmod +x "$tmp_script"
 
-    progress_step "Installing (you will be prompted for your password)..."
+    progress_step "Installing..."
     run_privileged_batch "$tmp_script"
     rm -f "$tmp_key" "$tmp_script"
 
@@ -507,11 +507,12 @@ install_flatpak() {
         "This will install BEACN Utility as a Flatpak from:\n${FLATPAK_REF}\n\nProceed?" \
         || { echo "Installation cancelled."; exit 0; }
 
-    # flatpak handles its own progress output and privilege escalation
-    # internally, and needs a real TTY for its interactive prompts.
-    echo "Installing BEACN Utility (Flatpak)..."
-    flatpak install "$FLATPAK_REF" < /dev/tty
+    progress_start "Installing BEACN Utility" 1
 
+    progress_step "Installing via Flatpak..."
+    flatpak install --noninteractive "$FLATPAK_REF"
+
+    progress_finish
     ui_info "Installation complete" "BEACN Utility has been installed successfully."
 }
 
