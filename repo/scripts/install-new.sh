@@ -98,6 +98,9 @@ if [ "${_PIPED_REEXEC:-}" != "1" ] && [ "${_DESKTOP_LAUNCH:-}" != "1" ] && [ ! -
     fi
 fi
 
+# Redirect output to a log file for easier debugging
+exec > /tmp/beacn-install.log 2>&1
+
 set -euo pipefail
 
 # ---------------------------------------------------------------------------
