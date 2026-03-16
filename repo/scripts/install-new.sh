@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 
 # =============================================================================
-# Stage 1 — Boostrapping
+# Stage 1 — Bootstrapping
 #
-# So before we do anything, see if we have any gui tools (zenity / kdialog), and if
-# we do use them directly rather than having a terminal.
+# Before we do anything, see if we have any GUI tools (zenity / kdialog), and
+# if we do use them directly rather than requiring a terminal.
 # =============================================================================
 
 _has_display() {
@@ -18,8 +18,8 @@ _has_gui_tools() {
 
 # Conditions in which we may need to spawn a terminal:
 # 1: We've not already re-execed (avoid infinite loop)
-# 2: We have a display (So we can launch the terminal app)
-# 3: We don't have GUI dialog tools
+# 2: We have a display (so we can launch a terminal app)
+# 3: We don't have GUI dialog tools (zenity/kdialog)
 # 4: Stdin is not a TTY (we're not already inside a terminal)
 if [ "${_TERMINAL_REEXEC:-}" != "1" ] && _has_display && ! _has_gui_tools && [ ! -t 0 ]; then
     terminal_candidates=(
@@ -225,10 +225,15 @@ ui_info() {
 # ---------------------------------------------------------------------------
 # Progress bar
 #
-# Usage:
-#   progress_start TITLE TOTAL_STEPS
-#   progress_step  "Step label"
-#   progress_finish                    (also called automatically on EXIT)
+# Two modes:
+#
+#   Stepped — use when you know how many stages there are:
+#     progress_start TITLE TOTAL_STEPS
+#     progress_step  "Step label"
+#     progress_finish
+#
+#   Pulsing — use when a single command runs for an unknown duration:
+#     progress_pulse TITLE COMMAND [ARGS...]
 # ---------------------------------------------------------------------------
 
 _PROGRESS_PIPE=""
@@ -322,6 +327,66 @@ progress_finish() {
     _PROGRESS_PID=""
     _PROGRESS_MODE=""
     _KDIALOG_DBUS=""
+}
+
+# progress_pulse TITLE COMMAND [ARGS...]
+# Shows a pulsing/indeterminate progress bar while COMMAND runs.
+# Use when progress percentage is unavailable (e.g. package installs).
+progress_pulse() {
+    local title="$1"; shift
+    local cmd=("$@")
+
+    if _has_display && command -v zenity &>/dev/null; then
+        "${cmd[@]}" &
+        local pid=$!
+        (
+            while kill -0 "$pid" 2>/dev/null; do
+                echo "."
+                sleep 1
+            done
+        ) | zenity --progress \
+            --title="$title" \
+            --text="Please wait..." \
+            --pulsate \
+            --auto-close \
+            --no-cancel \
+            --width=450 --height=300 \
+            2>/dev/null
+        wait "$pid"
+        return $?
+
+    elif _has_display && command -v kdialog &>/dev/null; then
+        local dbus
+        dbus=$(kdialog --progressbar "$title" 0 2>/dev/null)
+        "${cmd[@]}"
+        local exit_code=$?
+        qdbus $dbus close &>/dev/null || true
+        return $exit_code
+
+    elif command -v whiptail &>/dev/null || command -v dialog &>/dev/null; then
+        local pipe tui_cmd
+        pipe="$(mktemp -u /tmp/beacn-progress-XXXXXX)"
+        mkfifo "$pipe"
+        command -v whiptail &>/dev/null && tui_cmd=whiptail || tui_cmd=dialog
+        (
+            local i=0
+            while [ -p "$pipe" ]; do
+                printf '%d\nXXX\nPlease wait...\nXXX\n' $(( i % 100 ))
+                i=$(( i + 10 ))
+                sleep 1
+            done
+        ) > "$pipe" &
+        "$tui_cmd" --title "$title" --gauge "Please wait..." 8 60 0 < "$pipe" &
+        "${cmd[@]}"
+        local exit_code=$?
+        rm -f "$pipe"
+        return $exit_code
+
+    else
+        echo "$title"
+        "${cmd[@]}"
+        return $?
+    fi
 }
 
 # ---------------------------------------------------------------------------
@@ -442,30 +507,30 @@ install_deb() {
 
     _detect_escalate
 
-    progress_start "Installing BEACN Utility" 4
+    progress_start "Installing BEACN Utility" 2
 
     progress_step "Downloading signing key..."
     local tmp_key tmp_script
     tmp_key="$(mktemp /tmp/beacn-key-XXXXXX.gpg)"
     tmp_script="$(mktemp /tmp/beacn-priv-XXXXXX.sh)"
-    curl -fsSL "$GPG_KEY_URL" | gpg --dearmor > "$tmp_key"
+    curl -fsSL "$GPG_KEY_URL" | gpg --batch --no-tty --dearmor > "$tmp_key"
 
     progress_step "Preparing install..."
     cat > "$tmp_script" <<EOF
 #!/bin/bash
 set -e
+export DEBIAN_FRONTEND=noninteractive
 tee /usr/share/keyrings/beacn-on-linux.gpg < "$tmp_key" >/dev/null
 curl -fsSL "$APT_REPO_LIST_URL" -o /etc/apt/sources.list.d/beacn-on-linux.list
 apt-get update -q
 apt-get install -y beacn-utility
 EOF
     chmod +x "$tmp_script"
+    progress_finish
 
-    progress_step "Installing (you will be prompted for your password)..."
-    run_privileged_batch "$tmp_script"
+    progress_pulse "Installing BEACN Utility" run_privileged_batch "$tmp_script"
     rm -f "$tmp_key" "$tmp_script"
 
-    progress_finish
     ui_info "Installation complete" "BEACN Utility has been installed successfully."
 }
 
@@ -476,7 +541,7 @@ install_rpm() {
 
     _detect_escalate
 
-    progress_start "Installing BEACN Utility" 4
+    progress_start "Installing BEACN Utility" 2
 
     progress_step "Downloading signing key..."
     local tmp_key tmp_script
@@ -493,12 +558,11 @@ curl -fsSL "$RPM_REPO_URL" -o /etc/yum.repos.d/beacn-on-linux.repo
 dnf -y install beacn-utility 2>/dev/null || yum -y install beacn-utility
 EOF
     chmod +x "$tmp_script"
+    progress_finish
 
-    progress_step "Installing..."
-    run_privileged_batch "$tmp_script"
+    progress_pulse "Installing BEACN Utility" run_privileged_batch "$tmp_script"
     rm -f "$tmp_key" "$tmp_script"
 
-    progress_finish
     ui_info "Installation complete" "BEACN Utility has been installed successfully."
 }
 
@@ -509,9 +573,6 @@ install_flatpak() {
 
     _detect_escalate
 
-    progress_start "Installing BEACN Utility" 1
-
-    progress_step "Installing via Flatpak..."
     local tmp_script
     tmp_script="$(mktemp /tmp/beacn-priv-XXXXXX.sh)"
     cat > "$tmp_script" <<EOF
@@ -520,10 +581,10 @@ set -e
 flatpak install --noninteractive "$FLATPAK_REF"
 EOF
     chmod +x "$tmp_script"
-    run_privileged_batch "$tmp_script"
+
+    progress_pulse "Installing BEACN Utility" run_privileged_batch "$tmp_script"
     rm -f "$tmp_script"
 
-    progress_finish
     ui_info "Installation complete" "BEACN Utility has been installed successfully."
 }
 
@@ -533,11 +594,11 @@ install_aur() {
         || { echo "Installation cancelled."; exit 0; }
 
     # AUR helpers manage their own escalation and progress output.
-    echo "Installing BEACN Utility (AUR)..."
-    case "$aur_helper" in
-        yay|paru) $aur_helper -S "$AUR_PACKAGE" ;;
-        pamac)    pamac install "$AUR_PACKAGE" ;;
-    esac
+    progress_pulse "Installing BEACN Utility" \
+        bash -c "case '$aur_helper' in
+            yay|paru) $aur_helper -S '$AUR_PACKAGE' ;;
+            pamac)    pamac install '$AUR_PACKAGE' ;;
+        esac"
 
     ui_info "Installation complete" "BEACN Utility has been installed successfully."
 }
