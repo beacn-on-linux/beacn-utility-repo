@@ -142,6 +142,7 @@ ui_select() {
             --title="$title" \
             --text="$prompt" \
             --column="Option" \
+            --width=450 --height=300 \
             "${options[@]}" 2>/dev/null) || { echo "Installation cancelled."; exit 0; }
 
     elif _has_display && command -v kdialog &>/dev/null; then
@@ -180,7 +181,7 @@ ui_confirm() {
     local title="$1" msg="$2"
 
     if _has_display && command -v zenity &>/dev/null; then
-        zenity --question --title="$title" --text="$msg" 2>/dev/null
+        zenity --width=450 --height=300 --question --title="$title" --text="$msg" 2>/dev/null
 
     elif _has_display && command -v kdialog &>/dev/null; then
         kdialog --yesno "$msg" 2>/dev/null
@@ -201,7 +202,7 @@ ui_info() {
     local title="$1" msg="$2"
 
     if _has_display && command -v zenity &>/dev/null; then
-        zenity --info --title="$title" --text="$msg" 2>/dev/null
+        zenity --width=450 --height=300 --info --title="$title" --text="$msg" 2>/dev/null
 
     elif _has_display && command -v kdialog &>/dev/null; then
         kdialog --msgbox "$msg" 2>/dev/null
@@ -251,6 +252,7 @@ progress_start() {
             --percentage=0 \
             --auto-close \
             --no-cancel \
+            --width=450 --height=300 \
             < "$_PROGRESS_PIPE" &
         _PROGRESS_PID=$!
         exec 3>"$_PROGRESS_PIPE"
