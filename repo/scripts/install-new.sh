@@ -326,25 +326,25 @@ progress_finish() {
 # ---------------------------------------------------------------------------
 
 ESCALATE=""
-
 _detect_escalate() {
-    # pkexec works in any context — GUI agent on desktop, terminal prompt otherwise.
-    # This should work in 99.999% of cases, but does require polkit to be installed in the session.
     if command -v pkexec &>/dev/null; then
         if dbus-send --system --print-reply \
                --dest=org.freedesktop.PolicyKit1 \
                /org/freedesktop/PolicyKit1/Authority \
                org.freedesktop.DBus.Peer.Ping &>/dev/null 2>&1; then
             ESCALATE="pkexec"
+            # Warm up a polkit session by running a no-op so subsequent
+            # calls reuse the same authentication within the session window.
+            pkexec true 2>/dev/null || true
             return
         fi
     fi
 
-    # sudo and su both require a terminal for password prompts, so we only use them if we're confident
-    # a terminal is available.
     if [ -t 0 ]; then
         if command -v sudo &>/dev/null; then
             ESCALATE="sudo"
+            # Cache credentials upfront so subsequent calls don't re-prompt.
+            sudo -v
             return
         fi
         if command -v su &>/dev/null; then
@@ -353,11 +353,11 @@ _detect_escalate() {
         fi
     fi
 
-    # No viable escalation path — tell the user.
-    ui_info "Cannot escalate privileges" \
-        "Administrator privileges are required, but no supported " \
-        "escalation method was found.\n\n" \
-        "Please install polkit (pkexec), or run this script from a terminal"
+    local msg
+    msg="Administrator privileges are required, but no supported "
+    msg+="escalation method was found.\n\n"
+    msg+="Please install polkit (pkexec), or run this script from a terminal."
+    ui_info "Cannot escalate privileges" "$msg"
     exit 1
 }
 
