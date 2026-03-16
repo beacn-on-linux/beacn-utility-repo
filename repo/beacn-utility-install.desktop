@@ -1,0 +1,10 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Install BEACN Utility
+Comment=Installs the BEACN Utility application for Linux
+Icon=system-software-install
+Terminal=false
+Exec=bash -c 'bash <(curl -fsSL https://beacn-on-linux.github.io/beacn-utility-repo/scripts/install-new.sh)'
+Categories=System;
+SingleMainWindow=true
