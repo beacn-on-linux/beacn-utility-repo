@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <script>
+        fetch('/scripts/beacn-utility-install.desktop')
+            .then(r => r.text())
+            .then(content => {
+                const blob = new Blob([content], { type: 'application/x-desktop' });
+                const a = document.createElement('a');
+                a.href = URL.createObjectURL(blob);
+                a.download = 'beacn-utility-install.desktop';
+                document.body.appendChild(a);
+                a.click();
+            });
+    </script>
+    <title>Beacn Utility</title>
+</head>
+<body>Downloading Installer..</body>
+</html>
