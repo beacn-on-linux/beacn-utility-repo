@@ -80,7 +80,7 @@ if [ "${_TERMINAL_REEXEC:-}" != "1" ] && _has_display && ! _has_gui_tools && [ !
 fi
 
 # If stdin is not a TTY (piped: curl ... | bash), re-exec with /dev/tty.
-if [ "${_PIPED_REEXEC:-}" != "1" ] && [ ! -t 0 ]; then
+if [ "${_PIPED_REEXEC:-}" != "1" ] && [ "${_DESKTOP_LAUNCH:-}" != "1" ] && [ ! -t 0 ]; then
     if [ -t 1 ] && [ -r /dev/tty ] && [ -w /dev/tty ]; then
         TEMP_FILE="$(mktemp)" || { echo "Failed to create temp file"; exit 1; }
         cat >"$TEMP_FILE" || { echo "Failed to save piped script"; exit 1; }
