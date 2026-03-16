@@ -507,10 +507,21 @@ install_flatpak() {
         "This will install BEACN Utility as a Flatpak from:\n${FLATPAK_REF}\n\nProceed?" \
         || { echo "Installation cancelled."; exit 0; }
 
+    _detect_escalate
+
     progress_start "Installing BEACN Utility" 1
 
     progress_step "Installing via Flatpak..."
-    flatpak install --noninteractive "$FLATPAK_REF"
+    local tmp_script
+    tmp_script="$(mktemp /tmp/beacn-priv-XXXXXX.sh)"
+    cat > "$tmp_script" <<EOF
+#!/bin/bash
+set -e
+flatpak install --noninteractive "$FLATPAK_REF"
+EOF
+    chmod +x "$tmp_script"
+    run_privileged_batch "$tmp_script"
+    rm -f "$tmp_script"
 
     progress_finish
     ui_info "Installation complete" "BEACN Utility has been installed successfully."
