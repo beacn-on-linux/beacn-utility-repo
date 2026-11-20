@@ -129,7 +129,7 @@ jobs:
           flatpak build-update-repo repo/flatpak --gpg-sign="Beacn on Linux" --prune
 
       - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v4
         with:
           path: ./repo
 
